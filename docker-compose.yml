@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:latest
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: chat_db
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test"]
+      interval: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:latest
+    restart: always
+    ports:
+      - 6379:6379
+
+  initialize:
+    image: node:20
+    build: ./backend
+    command: sh -c "cd /usr/src/app && npm install && npm run migrate"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    image: node:20
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - initialize
+      - redis
+    ports:
+      - 3001:3001
+    command: sh -c "cd /usr/src/app && npm install && npm run start"
+
+volumes:
+  postgres-data:
